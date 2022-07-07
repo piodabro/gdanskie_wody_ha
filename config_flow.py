@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-# import aiohttp
+import aiohttp
 
 from .const import DOMAIN
 from .const import API_HOST
@@ -25,6 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required("api_key"): str,
+        vol.Required("station"): int,
     }
 )
 
@@ -41,15 +42,18 @@ class ApiConfigValidator:
     async def authenticate(self, hass: HomeAssistant, api_key: str) -> bool:
         """Test if we can authenticate with the host."""
 
-        auth_header = {"Authentication" : "Bearer " + api_key}
-        session = await async_get_clientsession(hass)
+        auth_header = {"Authorization" : "Bearer " + api_key}
+        session: aiohttp.ClientSession = async_get_clientsession(hass)
         test_url = API_HOST + "stations"
+        _LOGGER.info(test_url)
+
         result = await session.get(test_url, headers=auth_header)
-        # result = requests.get(API_HOST + "stations", headers=auth_header)
 
         if(result.ok):
-            _LOGGER.info(await result.text())
-            return True
+            res_json = await result.json()
+            _LOGGER.info(res_json)
+            if(res_json["status"] == "success"):
+                return True
         
         return False
 
@@ -70,8 +74,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     validator = ApiConfigValidator()
 
     try:
-        
-        if not await validator.authenticate(data["api_key"]):
+        if not await validator.authenticate(hass, data["api_key"]):
             raise InvalidAuth
     except ConnectionError:
         raise CannotConnect
@@ -79,7 +82,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         raise InvalidAuth
 
     # Return info that you want to store in the config entry.
-    return {"title": "Name of the device"}
+    return {"title": "Gdańskie wody - " + str(data["station"])}
 
 
 class GWConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -87,11 +90,11 @@ class GWConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
-        """Create the options flow."""
-        return GWOptionsFlowHandler(config_entry)
+    # @staticmethod
+    # @callback
+    # def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+    #     """Create the options flow."""
+    #     return GWOptionsFlowHandler(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -105,6 +108,10 @@ class GWConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         try:
+            await self.async_set_unique_id("gdanskiewody-" + str(user_input["station"]))
+            self._abort_if_unique_id_configured(
+                updates={"station": user_input["station"]}
+            )
             info = await validate_input(self.hass, user_input)
         except CannotConnect:
             errors["base"] = "cannot_connect"
@@ -129,26 +136,26 @@ class InvalidAuth(HomeAssistantError):
     """Error to indicate there is invalid auth."""
 
 
-class GWOptionsFlowHandler(config_entries.OptionsFlow):
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
+# class GWOptionsFlowHandler(config_entries.OptionsFlow):
+#     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+#         """Initialize options flow."""
+#         self.config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Manage the options."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+#     async def async_step_init(
+#         self, user_input: dict[str, Any] | None = None
+#     ) -> FlowResult:
+#         """Manage the options."""
+#         if user_input is not None:
+#             return self.async_create_entry(title="", data=user_input)
 
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        "station",
-                        default=self.config_entry.options.get("station"),
-                    ): str
-                }
-            ),
-        )
+#         return self.async_show_form(
+#             step_id="init",
+#             data_schema=vol.Schema(
+#                 {
+#                     vol.Required(
+#                         "station",
+#                         default=self.config_entry.options.get("station"),
+#                     ): str
+#                 }
+#             ),
+#         )
