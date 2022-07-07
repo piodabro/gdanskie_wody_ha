@@ -7,14 +7,16 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+# import aiohttp
 
 from .const import DOMAIN
 from .const import API_HOST
 
-import requests
+# import requests
 import json
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,14 +38,17 @@ class ApiConfigValidator:
     def __init__(self) -> None:
         """Initialize."""
 
-    def authenticate(self, api_key: str) -> bool:
+    async def authenticate(self, hass: HomeAssistant, api_key: str) -> bool:
         """Test if we can authenticate with the host."""
 
         auth_header = {"Authentication" : "Bearer " + api_key}
-        result = requests.get(API_HOST + "stations", headers=auth_header)
+        session = await async_get_clientsession(hass)
+        test_url = API_HOST + "stations"
+        result = await session.get(test_url, headers=auth_header)
+        # result = requests.get(API_HOST + "stations", headers=auth_header)
 
-        if(result.status_code == requests.codes.ok):
-            _LOGGER.info(result.content)
+        if(result.ok):
+            _LOGGER.info(await result.text())
             return True
         
         return False
@@ -66,7 +71,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     try:
         
-        if not await hass.async_add_executor_job(validator.authenticate, data["api_key"]):
+        if not await validator.authenticate(data["api_key"]):
             raise InvalidAuth
     except ConnectionError:
         raise CannotConnect
@@ -77,17 +82,16 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     return {"title": "Name of the device"}
 
 
-@staticmethod
-@callback
-def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
-    """Create the options flow."""
-    return OptionsFlowHandler(config_entry)
-
-
-class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class GWConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Gdańskie Wody."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+        """Create the options flow."""
+        return GWOptionsFlowHandler(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -125,7 +129,7 @@ class InvalidAuth(HomeAssistantError):
     """Error to indicate there is invalid auth."""
 
 
-class OptionsFlowHandler(config_entries.OptionsFlow):
+class GWOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.config_entry = config_entry
