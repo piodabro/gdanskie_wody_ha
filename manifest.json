@@ -1,0 +1,15 @@
+{
+  "domain": "gdanskie_wody",
+  "name": "Gda\u0144skie Wody",
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/gdanskie_wody",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": [
+    "@piodabro"
+  ],
+  "iot_class": "cloud_polling"
+}
