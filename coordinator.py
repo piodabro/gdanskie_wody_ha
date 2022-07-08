@@ -4,32 +4,38 @@ import logging
 import async_timeout
 
 from homeassistant.components.light import LightEntity
-from homeassistant.core import callback
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import callback, HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
     UpdateFailed,
 )
 
-from .const import DOMAIN
-from .gwody import GdanskieWodyAPI
+from datetime import datetime
+
+from .const import CONF_API_KEY, CONF_STATION, DOMAIN, SCAN_INTERVAL
+from .gwody import GWMeasurements, GdanskieWodyAPI
 
 _LOGGER = logging.getLogger(__name__)
 
-class GWCoordinator(DataUpdateCoordinator):
+class GWCoordinator(DataUpdateCoordinator[GWMeasurements]):
     """Gdanskie Wody data update coordinator."""
 
-    def __init__(self, hass: HomeAssistant, gw_api: GdanskieWodyAPI):
+    def __init__(self, hass: HomeAssistant, * , entry: ConfigEntry):
         """Initialize my coordinator."""
+        self._gw_api = GdanskieWodyAPI(entry.data[CONF_API_KEY], async_get_clientsession(hass))
+        self._station = entry.data[CONF_STATION]
+
         super().__init__(
             hass,
             _LOGGER,
-            name="Gdanskie Wody",
+            name=DOMAIN,
             # Polling interval. Will only be polled if there are subscribers.
-            update_interval=timedelta(hours=1),
+            update_interval=SCAN_INTERVAL,
         )
-        self._gw_api = gw_api
 
     async def _async_update_data(self):
         """Fetch data from API endpoint.
@@ -41,10 +47,6 @@ class GWCoordinator(DataUpdateCoordinator):
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
             async with async_timeout.timeout(10):
-                return await self._gw_api.async_get_measurement()
-        except ApiAuthError as err:
-            # Raising ConfigEntryAuthFailed will cancel future updates
-            # and start a config flow with SOURCE_REAUTH (async_step_reauth)
-            raise ConfigEntryAuthFailed from err
-        except ApiError as err:
+                return await self._gw_api.async_get_measurement(self._station, datetime.utcnow())
+        except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}")
