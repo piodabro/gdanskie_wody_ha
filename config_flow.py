@@ -18,7 +18,7 @@ from .const import API_HOST
 from .const import CONF_API_KEY
 from .const import CONF_STATION
 
-from gwody import GdanskieWodyAPI
+from .gwody import GdanskieWodyAPI
 
 # import requests
 import json
@@ -51,7 +51,7 @@ class ApiConfigValidator:
 
         res_json = await api.async_get_stations()
         _LOGGER.info(res_json)
-        if res_json is not None
+        if res_json is not None:
             if res_json["status"] == "success":
                 return True
         
