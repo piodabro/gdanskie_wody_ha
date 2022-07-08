@@ -21,8 +21,22 @@ def setup_platform(
     """Set up the sensor platform."""
     add_entities([RainSensor()])
 
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up Rain sensor based on a config entry."""
+    coordinator: WLEDDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities(
+        WLEDSensorEntity(coordinator, description)
+        for description in SENSORS
+        if description.exists_fn(coordinator.data)
+    )
 
-class RainSensor(SensorEntity):
+
+
+class RainSensorEntity(SensorEntity):
     """Representation of a Sensor."""
 
     _attr_name = "Rain"
