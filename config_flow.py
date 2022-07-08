@@ -15,6 +15,10 @@ import aiohttp
 
 from .const import DOMAIN
 from .const import API_HOST
+from .const import CONF_API_KEY
+from .const import CONF_STATION
+
+from gwody import GdanskieWodyAPI
 
 # import requests
 import json
@@ -24,8 +28,8 @@ _LOGGER = logging.getLogger(__name__)
 # TODO adjust the data schema to the data that you need
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required("api_key"): str,
-        vol.Required("station"): int,
+        vol.Required(CONF_API_KEY): str,
+        vol.Required(CONF_STATION): int,
     }
 )
 
@@ -42,17 +46,13 @@ class ApiConfigValidator:
     async def authenticate(self, hass: HomeAssistant, api_key: str) -> bool:
         """Test if we can authenticate with the host."""
 
-        auth_header = {"Authorization" : "Bearer " + api_key}
         session: aiohttp.ClientSession = async_get_clientsession(hass)
-        test_url = API_HOST + "stations"
-        _LOGGER.info(test_url)
+        api = GdanskieWodyAPI(api_key, session)
 
-        result = await session.get(test_url, headers=auth_header)
-
-        if(result.ok):
-            res_json = await result.json()
-            _LOGGER.info(res_json)
-            if(res_json["status"] == "success"):
+        res_json = await api.async_get_stations()
+        _LOGGER.info(res_json)
+        if res_json is not None
+            if res_json["status"] == "success":
                 return True
         
         return False
@@ -74,7 +74,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     validator = ApiConfigValidator()
 
     try:
-        if not await validator.authenticate(hass, data["api_key"]):
+        if not await validator.authenticate(hass, data[CONF_API_KEY]):
             raise InvalidAuth
     except ConnectionError:
         raise CannotConnect
@@ -82,7 +82,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         raise InvalidAuth
 
     # Return info that you want to store in the config entry.
-    return {"title": "Gdańskie wody - " + str(data["station"])}
+    return {"title": "Gdańskie wody - " + str(data[CONF_STATION])}
 
 
 class GWConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -108,9 +108,9 @@ class GWConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         try:
-            await self.async_set_unique_id("gdanskiewody-" + str(user_input["station"]))
+            await self.async_set_unique_id("gdanskiewody-" + str(user_input[CONF_STATION]))
             self._abort_if_unique_id_configured(
-                updates={"station": user_input["station"]}
+                updates={CONF_STATION: user_input[CONF_STATION]}
             )
             info = await validate_input(self.hass, user_input)
         except CannotConnect:
