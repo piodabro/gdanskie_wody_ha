@@ -19,17 +19,31 @@ class GWStatus(StrEnum):
     ERROR = "error"
     NONE = "none"
 
+class GWMeasurement:
+    date: datetime
+    value: float
+
+    def __init__(self, data: list):
+        self.date = data[0]
+        self.value = float(data[1])
+
 class GWMeasurements:
     """Represents GW API Measurements result"""
 
     status: GWStatus
-    data: list(array)
+    data: list = []
     message: str
 
-    def __init__(self, status: GWStatus = GWStatus.NONE, data: list(array) = [], message = ""):
+    def __init__(self, status: GWStatus = GWStatus.NONE, data: list = [], message = ""):
         self.status = status
+
+        for entry in data:
+            self.data.append(GWMeasurement(entry))
         self.data = data
         self.message = message
+
+    def get_current_measurement(self, date: datetime):
+        self.data
 
 class GdanskieWodyAPI:
     def __init__(self, api_key: str, session: aiohttp.ClientSession = None) -> None:
