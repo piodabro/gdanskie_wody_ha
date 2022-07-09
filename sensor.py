@@ -53,9 +53,10 @@ async def async_setup_entry(
     
     sensor_desc = GWSensorEntityDescription(
         key="rain",
-        name="Rain",
+        name=f"Rain_{coordinator.config_entry.data[CONF_STATION]}",
         native_unit_of_measurement=PRECIPITATION_MILLIMETERS_PER_HOUR,
         state_class=SensorStateClass.MEASUREMENT,
+        force_update=True,
         value_fn=get_meas_value  # lambda meas,date: [dta.value for dta in meas.data if dta.date == date].pop() if (meas is not None) else None
     )
 
