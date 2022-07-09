@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections.abc import Callable
 from datetime import datetime
+import logging
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -18,18 +19,29 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType, StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .gwody import GWMeasurements
+from .gwody import GWMeasurement, GWMeasurements
 from .coordinator import GWCoordinator
 from .const import CONF_STATION, DOMAIN
 
-def setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None
-) -> None:
-    """Set up the sensor platform."""
-    add_entities([RainSensorEntity()])
+_LOGGER = logging.getLogger(__name__)
+
+# def setup_platform(
+#     hass: HomeAssistant,
+#     config: ConfigType,
+#     add_entities: AddEntitiesCallback,
+#     discovery_info: DiscoveryInfoType | None = None
+# ) -> None:
+#     """Set up the sensor platform."""
+#     add_entities([RainSensorEntity()])
+
+def get_meas_value(meas: GWMeasurements, date: datetime):
+    if meas is not None:
+        for dta in meas.data:
+            _LOGGER.info(f"Dates: {dta.date} vs {date} -> {dta.date == date}")
+        current = [dta for dta in meas.data if dta.date == date]
+        return current[0].value if len(current) > 0 else None
+
+    return None
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -38,9 +50,17 @@ async def async_setup_entry(
 ) -> None:
     """Set up Rain sensor based on a config entry."""
     coordinator: GWCoordinator = hass.data[DOMAIN][entry.entry_id]
+    
+    sensor_desc = GWSensorEntityDescription(
+        key="rain",
+        name="Rain",
+        native_unit_of_measurement=PRECIPITATION_MILLIMETERS_PER_HOUR,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=get_meas_value  # lambda meas,date: [dta.value for dta in meas.data if dta.date == date].pop() if (meas is not None) else None
+    )
 
     async_add_entities(
-        RainSensorEntity(coordinator)
+        [GWSensorEntity(coordinator, sensor_desc)]
     )
 
 @dataclass
@@ -58,15 +78,9 @@ class GWSensorEntityDescription(
 
     exists_fn: Callable[[GWMeasurements], bool] = lambda _: True
 
-SENSORS: tuple[GWSensorEntityDescription, ...] = (
-    GWSensorEntityDescription(
-        key="rain",
-        name="Rain",
-        native_unit_of_measurement=PRECIPITATION_MILLIMETERS_PER_HOUR,
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda meas: meas
-    )
-)
+# SENSORS: tuple[GWSensorEntityDescription, ...] = (
+    
+# )
 
 class GWSensorEntity(CoordinatorEntity[GWCoordinator], SensorEntity):
     """Representation of a GW Sensor."""
@@ -87,18 +101,21 @@ class GWSensorEntity(CoordinatorEntity[GWCoordinator], SensorEntity):
     @property
     def native_value(self) -> datetime | StateType:
         """Return the state of the sensor."""
-        return self.entity_description.value_fn(self.coordinator.data)
+        date = datetime.utcnow()
+        date = date.replace(minute=0, second=0, microsecond=0) # Returns a copy
+        return self.entity_description.value_fn(self.coordinator.data, date)
 
-    def __init__(self, coordinator, description):
-        super().__init__(coordinator)
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        return None
+    # def __init__(self, coordinator, description):
+    #     super().__init__(coordinator)
 
-    def update(self) -> None:
-        """Fetch new state data for the sensor.
+    # @callback
+    # def _handle_coordinator_update(self) -> None:
+    #     return None
 
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        self._attr_native_value = 23
+    # def update(self) -> None:
+    #     """Fetch new state data for the sensor.
+
+    #     This is the only method that should fetch new data for Home Assistant.
+    #     """
+    #     self._attr_native_value = 23

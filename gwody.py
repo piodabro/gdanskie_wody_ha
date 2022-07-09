@@ -21,17 +21,17 @@ class GWStatus(StrEnum):
 
 class GWMeasurement:
     date: datetime
-    value: float
+    value: float | None
 
     def __init__(self, data: list):
-        self.date = data[0]
-        self.value = float(data[1])
+        self.date = datetime.strptime(data[0], "%Y-%m-%d %H:%M:%S")
+        self.value = data[1]
 
 class GWMeasurements:
     """Represents GW API Measurements result"""
 
     status: GWStatus
-    data: list = []
+    data: list[GWMeasurement] = []
     message: str
 
     def __init__(self, status: GWStatus = GWStatus.NONE, data: list = [], message = ""):
@@ -39,11 +39,10 @@ class GWMeasurements:
 
         for entry in data:
             self.data.append(GWMeasurement(entry))
-        self.data = data
         self.message = message
 
-    def get_current_measurement(self, date: datetime):
-        self.data
+    # def get_current_measurement(self, date: datetime):
+    #     self.data
 
 class GdanskieWodyAPI:
     def __init__(self, api_key: str, session: aiohttp.ClientSession = None) -> None:
@@ -69,13 +68,15 @@ class GdanskieWodyAPI:
             api_date = date - timedelta(day=1)
 
         date_str = api_date.strftime("%Y-%m-%d")
-        result = await self._session.get(API_MEASUREMENTS_BASE_URL + f'{station}/rain/{date_str}')
+        result = await self._session.get(API_MEASUREMENTS_BASE_URL + f'{station}/rain/{date_str}', headers=self._auth_header)
+
+        _LOGGER.info(f"Asking GW station {station} with date {date_str}")
 
         if result.ok:
             result_json = await result.json()
             if result_json["status"] == GWStatus.SUCCESS:
-                result: GWMeasurements = GWMeasurements(status=result_json["status"], data=result_json["data"], message=result_json["message"])
-                return result
+                measurements: GWMeasurements = GWMeasurements(status=result_json["status"], data=result_json["data"], message=result_json["message"])
+                return measurements
 
         return None
 
