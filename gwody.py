@@ -31,18 +31,16 @@ class GWMeasurements:
     """Represents GW API Measurements result"""
 
     status: GWStatus
-    data: list[GWMeasurement] = []
+    data: list[GWMeasurement]
     message: str
 
     def __init__(self, status: GWStatus = GWStatus.NONE, data: list = [], message = ""):
+        self.data = []
         self.status = status
 
         for entry in data:
             self.data.append(GWMeasurement(entry))
         self.message = message
-
-    # def get_current_measurement(self, date: datetime):
-    #     self.data
 
 class GdanskieWodyAPI:
     def __init__(self, api_key: str, session: aiohttp.ClientSession = None) -> None:

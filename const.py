@@ -11,4 +11,4 @@ API_MEASUREMENTS_BASE_URL = API_HOST + "measurements/"
 CONF_API_KEY = "api_key"
 CONF_STATION = "station"
 
-SCAN_INTERVAL = timedelta(hours=1)
+SCAN_INTERVAL = timedelta(minutes=5)

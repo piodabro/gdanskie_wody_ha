@@ -36,11 +36,18 @@ _LOGGER = logging.getLogger(__name__)
 
 def get_meas_value(meas: GWMeasurements, date: datetime):
     if meas is not None:
+        current = None
+        _LOGGER.info(f"Dta len {len(meas.data)}")
         for dta in meas.data:
             _LOGGER.info(f"Dates: {dta.date} vs {date} -> {dta.date == date}")
-        current = [dta for dta in meas.data if dta.date == date]
-        return current[0].value if len(current) > 0 else None
-
+            if dta.date == date:
+                current = dta
+                break
+        # current = [dta for dta in meas.data if dta.date == date]
+        if current is not None:
+            _LOGGER.info(f"Read values are: {current.date} -> {current.value}")
+            return current.value 
+    _LOGGER.info(f"Read values are None")
     return None
 
 async def async_setup_entry(
@@ -55,7 +62,7 @@ async def async_setup_entry(
         key="rain",
         name=f"Rain_{coordinator.config_entry.data[CONF_STATION]}",
         native_unit_of_measurement=PRECIPITATION_MILLIMETERS_PER_HOUR,
-        state_class=SensorStateClass.MEASUREMENT,
+        state_class=SensorStateClass.TOTAL,
         force_update=True,
         value_fn=get_meas_value  # lambda meas,date: [dta.value for dta in meas.data if dta.date == date].pop() if (meas is not None) else None
     )
@@ -104,6 +111,10 @@ class GWSensorEntity(CoordinatorEntity[GWCoordinator], SensorEntity):
         """Return the state of the sensor."""
         date = datetime.utcnow()
         date = date.replace(minute=0, second=0, microsecond=0) # Returns a copy
+        if self.last_reset is None or self.last_reset < date:
+            prev_reset = self.last_reset
+            self.entity_description.last_reset = date
+            _LOGGER.info(f"Updated last_reset from {prev_reset} to {self.last_reset}")
         return self.entity_description.value_fn(self.coordinator.data, date)
 
 
